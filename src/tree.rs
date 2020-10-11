@@ -1,5 +1,3 @@
-// Tree構造体を作る→rootの役目
-// node のadd_left, add_rightの引数はT型 add_left_treeはtreeを引数に取るようにする
 
 #[derive(Debug)]
 pub enum SearchOrder {
@@ -90,7 +88,7 @@ impl<T> Node<T> {
         self.right.replace(Box::new(tree));
     }
 
-    pub fn add_left(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
+    pub fn add_node_left(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
         match self.left {
             None => {
                 self.left = Some(Box::new(tree));
@@ -102,7 +100,7 @@ impl<T> Node<T> {
         }
     }
 
-    pub fn add_right(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
+    pub fn add_node_right(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
         match self.right {
             None => {
                 self.right = Some(Box::new(tree));
@@ -114,7 +112,33 @@ impl<T> Node<T> {
         }
     }
 
-    pub fn foreach(&self, order: &SearchOrder, func: &Fn(&T)) {
+    pub fn create_left_node(&mut self, value: T) -> Result<&mut Node<T>, String> {
+        match self.left {
+            None => {
+                let node = Node::new(value);
+                self.left = Some(Box::new(node));
+                Ok( self.left_mut().unwrap() )
+            },
+            Some(_) => {
+                Err("Left Node is aready Exist!".to_string())
+            }
+        }
+    }
+
+    pub fn create_right_node(&mut self, value: T) -> Result<&mut Node<T>, String> {
+        match self.right {
+            None => {
+                let node = Node::new(value);
+                self.right = Some(Box::new(node));
+                Ok( self.right_mut().unwrap() )
+            },
+            Some(_) => {
+                Err("Right Node is aready Exist!".to_string())
+            }
+        }
+    }
+
+    pub fn foreach(&self, order: &SearchOrder, func: &mut FnMut(&T)) {
         match order {
             SearchOrder::PreOrder => {
                 func(self.as_ref());
@@ -196,8 +220,8 @@ mod tests {
         let left = Node::new(Ijk::new(1));
         let right = Node::new(Ijk::new(2));
         
-        root.add_left(left).unwrap();
-        root.add_right(right).unwrap();
+        root.add_node_left(left).unwrap();
+        root.add_node_right(right).unwrap();
         
         let a = root.left().unwrap();
 
@@ -218,8 +242,8 @@ mod tests {
         let right1 = Node::new(Ijk::new(3));
         let right2 = Node::new(Ijk::new(4));
 
-        root.add_left(left1).unwrap().add_left(left2).unwrap();
-        root.add_right(right1).unwrap().add_right(right2).unwrap();
+        root.add_node_left(left1).unwrap().add_node_left(left2).unwrap();
+        root.add_node_right(right1).unwrap().add_node_right(right2).unwrap();
 
         assert_eq!(root.left().unwrap().as_ref(), &Ijk::new(1));
         assert_eq!(root.left().unwrap().left().unwrap().as_ref(), &Ijk::new(2));
@@ -238,8 +262,8 @@ mod tests {
         let right1 = Node::new(Ijk::new(3));
         let right2 = Node::new(Ijk::new(4));
 
-        root.add_left(left1).unwrap().add_left(left2).unwrap();
-        root.add_right(right1).unwrap().add_right(right2).unwrap();
+        root.add_node_left(left1).unwrap().add_node_left(left2).unwrap();
+        root.add_node_right(right1).unwrap().add_node_right(right2).unwrap();
 
         let leftnew = root.take_left();
         
@@ -257,8 +281,8 @@ mod tests {
         let right1 = Node::new(Ijk::new(3));
         let right2 = Node::new(Ijk::new(4));
 
-        root.add_left(left1).unwrap().add_left(left2).unwrap();
-        root.add_right(right1).unwrap().add_right(right2).unwrap();
+        root.add_node_left(left1).unwrap().add_node_left(left2).unwrap();
+        root.add_node_right(right1).unwrap().add_node_right(right2).unwrap();
 
         let rightnew = root.take_right().unwrap();
         
@@ -277,8 +301,8 @@ mod tests {
         let mut left2_1 = Node::new(Ijk::new(3));
         let left2_2 = Node::new(Ijk::new(4));
 
-        root.add_left(left1_1).unwrap().add_left(left1_2).unwrap();
-        left2_1.add_left(left2_2).unwrap();
+        root.add_node_left(left1_1).unwrap().add_node_left(left1_2).unwrap();
+        left2_1.add_node_left(left2_2).unwrap();
 
         root.replace_left(left2_1);
 
@@ -293,12 +317,22 @@ mod tests {
         let mut right2_1 = Node::new(Ijk::new(3));
         let right2_2 = Node::new(Ijk::new(4));
 
-        root.add_right(right1_1).unwrap().add_right(right1_2).unwrap();
-        right2_1.add_right(right2_2).unwrap();
+        root.add_node_right(right1_1).unwrap().add_node_right(right1_2).unwrap();
+        right2_1.add_node_right(right2_2).unwrap();
 
         root.replace_right(right2_1);
 
         assert_eq!(root.right().unwrap().as_ref(), &Ijk::new(3));
+    }
+
+    #[test]
+    fn create_node() {
+        let mut root = Node::new(1);
+        root.create_left_node(2).unwrap();
+        root.create_right_node(3).unwrap();
+
+        assert_eq!(root.left().unwrap().as_ref(), &2);
+        assert_eq!(root.right().unwrap().as_ref(), &3);
     }
 
     #[test]
@@ -307,21 +341,21 @@ mod tests {
         let mut left = Node::new(2);
         let mut right = Node::new(3);
 
-        left.add_left(Node::new(4)).unwrap();
-        left.add_right(Node::new(5)).unwrap();
+        left.add_node_left(Node::new(4)).unwrap();
+        left.add_node_right(Node::new(5)).unwrap();
 
-        right.add_left(Node::new(6)).unwrap();
-        right.add_right(Node::new(7)).unwrap();
+        right.add_node_left(Node::new(6)).unwrap();
+        right.add_node_right(Node::new(7)).unwrap();
 
-        root.add_left(left).unwrap();
-        root.add_right(right).unwrap();
+        root.add_node_left(left).unwrap();
+        root.add_node_right(right).unwrap();
 
         let preorder_vec = vec![1, 2, 4, 5, 3, 6, 7];
         let inorder_vec = vec![4, 2, 5, 1, 6, 3, 7];
         let postorder_vec = vec![4, 5, 2, 6, 7, 3, 1];
-        let mut result: Vec<&i32> = Vec::new();
+  //      let mut result = Vec::new();
 
-        root.foreach(&SearchOrder::InOrder, &|x| result.push(x));
+     //   root.foreach(&SearchOrder::InOrder, &mut |x| result.push(x));
 
     }
 }
