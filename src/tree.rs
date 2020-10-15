@@ -138,7 +138,8 @@ impl<T> Node<T> {
         }
     }
 
-    pub fn foreach(&self, order: &SearchOrder, func: &mut FnMut(&T)) {
+    pub fn foreach<F> (&self, order: &SearchOrder, func: &mut F) 
+    where F: FnMut(&T) {
         match order {
             SearchOrder::PreOrder => {
                 func(self.as_ref());
@@ -353,9 +354,32 @@ mod tests {
         let preorder_vec = vec![1, 2, 4, 5, 3, 6, 7];
         let inorder_vec = vec![4, 2, 5, 1, 6, 3, 7];
         let postorder_vec = vec![4, 5, 2, 6, 7, 3, 1];
-  //      let mut result = Vec::new();
 
-     //   root.foreach(&SearchOrder::InOrder, &mut |x| result.push(x));
+        let mut result: Vec<i32> = Vec::new();
+        let mut pusher = |x: &i32| result.push(*x);
+
+        root.foreach(&SearchOrder::PreOrder, &mut pusher);
+
+        assert_eq!(result, preorder_vec);
+  
+        let mut result: Vec<i32> = Vec::new();
+        let mut pusher = |x: &i32| result.push(*x);
+
+        root.foreach(&SearchOrder::InOrder, &mut pusher);
+
+        assert_eq!(result, inorder_vec);
+
+        let mut result: Vec<i32> = Vec::new();
+        let mut pusher = |x: &i32| result.push(*x);
+
+        root.foreach(&SearchOrder::PostOrder, &mut pusher);
+
+        assert_eq!(result, postorder_vec);
+
+        *root.as_mut() = 0;
+
+        println!("{:?}", result);
+        println!("{:?}", root);
 
     }
 }
