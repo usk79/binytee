@@ -138,8 +138,8 @@ impl<T> Node<T> {
         }
     }
 
-    pub fn foreach<F> (&self, order: &SearchOrder, func: &mut F) 
-    where F: FnMut(&T) {
+    pub fn foreach<'r, F> (&'r self, order: &SearchOrder, func: &mut F) 
+    where F: FnMut(&'r T) {
         match order {
             SearchOrder::PreOrder => {
                 func(self.as_ref());
@@ -170,6 +170,19 @@ impl<T> Node<T> {
             }
         }
     }
+
+    pub fn iter<'r>(&'r self, order: &SearchOrder) -> NodeIter<T> {
+        let mut elems: Vec<&'r T> = Vec::new();
+
+        self.foreach(order, &mut |x| elems.push(x));
+        let length = elems.len();
+
+        NodeIter {
+            elements: elems,
+            len: length,
+            idx: 0,
+        }
+    }
 }
 
 impl<T> AsRef<T> for Node<T> {
@@ -181,6 +194,27 @@ impl<T> AsRef<T> for Node<T> {
 impl<T> AsMut<T> for Node<T> {
     fn as_mut(&mut self) -> &mut T {
         &mut self.data
+    }
+}
+
+pub struct NodeIter<'r, T> {
+    elements: Vec<&'r T>,
+    len: usize,
+    idx: usize,
+}
+
+impl<'r, T> Iterator for NodeIter<'r, T> {
+    type Item = &'r T;
+
+    fn next(&mut self) -> Option<&'r T> {
+        if self.idx < self.len {
+            let ret = Some(self.elements[self.idx]);
+            self.idx += 1;
+            ret
+        }
+        else {
+            None
+        }
     }
 }
 
@@ -381,5 +415,32 @@ mod tests {
         println!("{:?}", result);
         println!("{:?}", root);
 
+    }
+
+    #[test]
+    fn iterator_test() {
+        let mut root = Node::new(1);
+        let mut left = Node::new(2);
+        let mut right = Node::new(3);
+
+        left.add_node_left(Node::new(4)).unwrap();
+        left.add_node_right(Node::new(5)).unwrap();
+
+        right.add_node_left(Node::new(6)).unwrap();
+        right.add_node_right(Node::new(7)).unwrap();
+
+        root.add_node_left(left).unwrap();
+        root.add_node_right(right).unwrap();
+
+        let mut iter = root.iter(&SearchOrder::PreOrder);
+
+        assert_eq!(iter.next(), Some(&1));
+        assert_eq!(iter.next(), Some(&2));
+        assert_eq!(iter.next(), Some(&4));
+        assert_eq!(iter.next(), Some(&5));
+        assert_eq!(iter.next(), Some(&3));
+        assert_eq!(iter.next(), Some(&6));
+        assert_eq!(iter.next(), Some(&7));
+        assert_eq!(iter.next(), None);
     }
 }
