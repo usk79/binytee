@@ -20,16 +20,28 @@ impl Ijk {
 
 fn fn1(dat: &mut i32) {
     *dat = 100;
+    
+}
+
+fn fn2() {
+    let mut a = Some(Box::new(1));
+
+    let b = a.as_mut();
+
+    let c = b.map(|x| &mut **x).unwrap();
+
+    *c = 10;
+    
+    println!("{:?}", c);
 }
 
 fn main() {
-    let mut a = 10;
-    fn1(&mut a);
-    println!("{}", a);
-
+    fn2();
+/*
+    let mut a = 0;
     let b = &mut a;
-    *b = 200;
-    println!("{}", a);
+
+
 
     let mut root = Node::new(1);
     let mut left = Node::new(2);
@@ -99,6 +111,8 @@ fn main() {
     call_me_mut(&mut pusher);
 
     println!("{:?}", ary);
+
+    */
 }
 
 

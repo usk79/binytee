@@ -171,6 +171,39 @@ impl<T> Node<T> {
         }
     }
 
+    pub fn foreach_mut<'r, F> (&'r mut self, order: &SearchOrder, func: &mut F) 
+    where F: FnMut(&mut T) {
+        match order {
+            SearchOrder::PreOrder => {
+                func(self.as_mut());
+                if self.left_mut().is_some() {
+                    self.left_mut().unwrap().foreach_mut(order, func);
+                }
+                if self.right_mut().is_some() {
+                    self.right_mut().unwrap().foreach_mut(order, func);
+                }
+            },
+            SearchOrder::InOrder => {
+                if self.left_mut().is_some() {
+                    self.left_mut().unwrap().foreach_mut(order, func);
+                }
+                func(self.as_mut());
+                if self.right_mut().is_some() {
+                    self.right_mut().unwrap().foreach_mut(order, func);
+                }
+            },
+            SearchOrder::PostOrder => {
+                if self.left_mut().is_some() {
+                    self.left_mut().unwrap().foreach_mut(order, func);
+                }
+                if self.right_mut().is_some() {
+                    self.right_mut().unwrap().foreach_mut(order, func);
+                }
+                func(self.as_mut());
+            }
+        }
+    }
+
     pub fn iter<'r>(&'r self, order: &SearchOrder) -> NodeIter<T> {
         let mut elems: Vec<&'r T> = Vec::new();
 
@@ -183,6 +216,22 @@ impl<T> Node<T> {
             idx: 0,
         }
     }
+/*
+    pub fn iter_mut<'r>(&'r self, order: &SearchOrder) -> NodeIterMut<T> {
+        let mut elems: Vec<&'r mut T> = Vec::new();
+
+        self.foreach_mut(order, &mut |x| elems.push(x));
+        let length = elems.len();
+
+        let mut elems = elems.iter_mut();
+        
+        NodeIterMut {
+            elements: elems,
+            len: length,
+            idx: 0,
+        }
+    }
+    */
 }
 
 impl<T> AsRef<T> for Node<T> {
@@ -218,6 +267,28 @@ impl<'r, T> Iterator for NodeIter<'r, T> {
     }
 }
 
+pub struct NodeIterMut<'r, T> {
+    elements: std::slice::IterMut<'r, &'r mut T>,
+    len: usize,
+    idx: usize,
+}
+/*
+impl<'r, T> Iterator for NodeIterMut<'r, T> {
+    type Item = &'r mut T;
+
+    fn next(&mut self) -> Option<&'r mut T> {
+        if self.idx < self.len {
+            let a = self.elements[self.idx];
+            let ret = Some(a);
+            self.idx += 1;
+            ret
+        }
+        else {
+            None
+        }
+    }
+}
+*/
 #[cfg(test)]
 mod tests {
 
@@ -417,6 +488,40 @@ mod tests {
 
     }
 
+    fn create_test_tree() -> Node<i32> {
+        let mut root = Node::new(1);
+        let mut left = Node::new(2);
+        let mut right = Node::new(3);
+
+        left.add_node_left(Node::new(4)).unwrap();
+        left.add_node_right(Node::new(5)).unwrap();
+
+        right.add_node_left(Node::new(6)).unwrap();
+        right.add_node_right(Node::new(7)).unwrap();
+
+        root.add_node_left(left).unwrap();
+        root.add_node_right(right).unwrap();
+
+        root
+    }
+
+    #[test]
+    fn foreach_mutable_test()
+    {
+        let mut root = create_test_tree();
+
+        root.foreach_mut(&SearchOrder::PreOrder, &mut |x| *x = 0);
+
+        let vec = vec![0, 0, 0, 0, 0, 0, 0];
+
+        let mut result: Vec<i32> = Vec::new();
+        let mut pusher = |x: &i32| result.push(*x);
+
+        root.foreach(&SearchOrder::PreOrder, &mut pusher);
+
+        assert_eq!(result, vec);
+    }
+
     #[test]
     fn iterator_test() {
         let mut root = Node::new(1);
@@ -432,8 +537,11 @@ mod tests {
         root.add_node_left(left).unwrap();
         root.add_node_right(right).unwrap();
 
-        let mut iter = root.iter(&SearchOrder::PreOrder);
-
+        let iter = root.iter(&SearchOrder::PreOrder);
+        let mut sum = 0;
+        iter.map(|x| sum += x);
+        
+        /*
         assert_eq!(iter.next(), Some(&1));
         assert_eq!(iter.next(), Some(&2));
         assert_eq!(iter.next(), Some(&4));
@@ -441,6 +549,28 @@ mod tests {
         assert_eq!(iter.next(), Some(&3));
         assert_eq!(iter.next(), Some(&6));
         assert_eq!(iter.next(), Some(&7));
-        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);*/
+    }
+
+    #[test]
+    fn sandbox() {
+        let mut root = Node::new(1);
+        let mut left = Node::new(2);
+        let mut right = Node::new(3);
+
+        left.add_node_left(Node::new(4)).unwrap();
+        left.add_node_right(Node::new(5)).unwrap();
+
+        right.add_node_left(Node::new(6)).unwrap();
+        right.add_node_right(Node::new(7)).unwrap();
+
+        root.add_node_left(left).unwrap();
+        root.add_node_right(right).unwrap();
+
+        let iter = root.iter(&SearchOrder::PreOrder);
+        let mut sum = 0;
+        iter.map(|x| sum += x);
+
+        
     }
 }
