@@ -9,10 +9,19 @@ struct Annot<T> {
     loc: Loc,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ParseError {
     Invalid_char(char),
     Invalid_FloatValue,
+    Invalid_Operator,
+    Invalid_Formula,
+    NodeError(NodeError),
+}
+
+impl From<NodeError> for ParseError {
+    fn from(e: NodeError) -> Self {
+        ParseError::NodeError(e)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,13 +32,30 @@ enum TokenKind {
     Minus,              // '-'
     Mul,                // '*'
     Div,                // '/'
+    Equal,              // '=' 
     LParen,             // '('
     RParen,             // ')'
 }
 
 impl TokenKind {
-    pub fn is_operator(target: &u8) -> bool {
+    pub fn is_operator(target: &u8) -> bool { // 演算子なら優先度を返す 0が一番優先度高い
         b"+-*/()".contains(target)
+    }
+
+    pub fn is_value(token: &TokenKind) -> bool {
+        match token {
+            TokenKind::Float(_) | TokenKind::Variable(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn ope_priority(operator: &TokenKind) -> Option<u8> {
+        match operator {
+            TokenKind::Mul | TokenKind::Div => Some(0),
+            TokenKind::Plus | TokenKind::Minus => Some(1),
+            TokenKind::Equal => Some(2),
+            _ => None,
+        }
     }
 
     pub fn valid_char_for_variable(target: &u8) -> bool {
@@ -49,24 +75,71 @@ impl TokenKind {
 
 type Token = Annot<TokenKind>;
 
-// FormulaParserは、数式文字列から2分木を構築する + 計算を行う
-pub struct FormulaParser { 
-    tree: Option<Node<TokenKind>>,
+// FormulaCalculatorは、数式文字列から2分木を構築する + 計算を行う
+pub struct FormulaCalculator { 
+    tree: Option<Node<Token>>,
 }
 
-impl FormulaParser {
+impl FormulaCalculator {
     pub fn new() -> Self {
-        Self {
+        FormulaCalculator {
             tree: None,
         }
     }
 
     pub fn parse(&mut self, formula: &str) -> Result<(), ParseError> {
         let tokens = Self::lexer(formula);
-
-        println!("{:?}", tokens);
-
+        
+        match tokens {
+            Ok(t) => {
+                let res = Self::parser(&t);
+                match res {
+                    Ok(n) => self.tree = Some(n),
+                    Err(e) => return Err(e),
+                }
+                
+            },
+            Err(e) => return Err(e),
+        }
+        
+        println!("{:?}", self.tree);
         Ok(())
+    }
+
+    fn parser(tokens: &[Token]) -> Result< Node<Token>, ParseError> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
+        let mut priority = 0;
+        let mut target_ope = 0; // 一番優先度の低い演算子の番号
+        let mut ope_found = false; // 演算子があるかないか
+
+        // Step. 0: tokensの長さが1の時(木の末端)
+        if tokens.len() == 1 {
+            if TokenKind::is_value(&tokens[0].value) {
+                return Ok( Node::new(tokens[0].clone()) );
+            } else {
+                return Err( ParseError::Invalid_Formula );
+            }
+        }
+        
+        // Step. 1: 式の中で最も右にありかつ優先度の低い演算子を抽出する。
+        for (idx, token) in tokens.iter().enumerate() {           
+            if let Some(p) = TokenKind::ope_priority(&token.value) {
+                if p >= priority {
+                    priority = p;
+                    target_ope = idx;
+                }
+                ope_found = true;
+            }                     
+        }
+        if ope_found == false { return Err( ParseError::Invalid_Formula ); }
+
+        // Step. 2: 一番優先度の低い演算子でノードを作成
+        let mut node = Node::new(tokens[target_ope].clone());
+        
+        // Step. 3: 演算子を中心に左と右に分ける
+        node.add_node_left( Self::parser(&tokens[0..target_ope])? )?;   // このunwrapはダメ　add_node_leftのエラーがstringなのが間違い
+        node.add_node_right( Self::parser(&tokens[target_ope + 1..])? )?;
+        
+        Ok( node )
     }
 
     fn lexer(formula: &str) -> Result<Vec<Token>, ParseError> {
@@ -96,6 +169,7 @@ impl FormulaParser {
                 b'-' => push_operator!(TokenKind::Minus),
                 b'*' => push_operator!(TokenKind::Mul),
                 b'/' => push_operator!(TokenKind::Div),
+                b'=' => push_operator!(TokenKind::Equal),
                 b'(' => push_operator!(TokenKind::LParen),
                 b')' => push_operator!(TokenKind::RParen),
                 b'0'..=b'9' => push_value!(Self::lex_number),
@@ -163,18 +237,18 @@ mod tests {
     fn test_lexnumber() {
         let mut pos = 0;
         
-        let token = FormulaParser::lex_number(&"3.1415926535".as_bytes(), &mut pos).unwrap();
+        let token = FormulaCalculator::lex_number(&"3.1415926535".as_bytes(), &mut pos).unwrap();
 
         assert_eq!(token, Token{ value: TokenKind::Float(3.1415926535), loc: Loc(0, 12)});
 
         let mut pos = 0;
         
-        let token = FormulaParser::lex_number(&"93.141xx".as_bytes(), &mut pos).unwrap();
+        let token = FormulaCalculator::lex_number(&"93.141xx".as_bytes(), &mut pos).unwrap();
 
         assert_eq!(token, Token{ value: TokenKind::Float(93.141), loc: Loc(0, 6)});
         
         let mut pos = 0;
-        let token = FormulaParser::lex_number(&"3.3.2".as_bytes(), &mut pos);
+        let token = FormulaCalculator::lex_number(&"3.3.2".as_bytes(), &mut pos);
 
         assert_eq!(token, Err(ParseError::Invalid_FloatValue));
     }
@@ -183,18 +257,18 @@ mod tests {
     fn test_lexvariable() {
         let mut pos = 0;
         
-        let token = FormulaParser::lex_variable(&"apple".as_bytes(), &mut pos).unwrap();
+        let token = FormulaCalculator::lex_variable(&"apple".as_bytes(), &mut pos).unwrap();
 
         assert_eq!(token, Token{ value: TokenKind::Variable("apple".to_string()), loc: Loc(0, 5)});
 
         let mut pos = 0;
         
-        let token = FormulaParser::lex_variable(&"apple2".as_bytes(), &mut pos).unwrap();
+        let token = FormulaCalculator::lex_variable(&"apple2".as_bytes(), &mut pos).unwrap();
 
         assert_eq!(token, Token{ value: TokenKind::Variable("apple2".to_string()), loc: Loc(0, 6)});
         
         let mut pos = 0;
-        let token = FormulaParser::lex_variable(&"aa#aa".as_bytes(), &mut pos);
+        let token = FormulaCalculator::lex_variable(&"aa#aa".as_bytes(), &mut pos);
 
         assert_eq!(token, Err(ParseError::Invalid_char('#')));
     }
