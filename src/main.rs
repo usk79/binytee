@@ -1,4 +1,5 @@
 use bintree::tree::{Node, SearchOrder};
+use bintree::formula_parser::{*};
 
 #[derive(Debug)]
 struct Ijk {
@@ -35,8 +36,18 @@ fn fn2() {
     println!("{:?}", c);
 }
 
+fn fn3() {
+    let mut a = FormulaParser::new();
+
+    a.parse("1 + 2.3 * 4 apple").unwrap();
+
+
+
+}
+
 fn main() {
-    fn2();
+    fn3();
+
 /*
     let mut a = 0;
     let b = &mut a;
