@@ -37,12 +37,15 @@ fn fn2() {
 }
 
 fn fn3() {
-    let mut a = FormulaParser::new();
+    let mut a = FormulaCalculator::new();
 
-    a.parse("1 + 2.3 * 4 apple").unwrap();
+    //a.parse("1 + 2.3 * 4 + 5").unwrap();
+    a.parse("1 + 2 * 3").unwrap();
 
+    let v = vec![1, 2, 3, 4];
+    let b = &v[2..];
 
-
+    println!("{:?}", b);
 }
 
 fn main() {

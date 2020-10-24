@@ -7,6 +7,11 @@ pub enum SearchOrder {
 }
 
 #[derive(Debug)]
+pub enum NodeError {
+    ChildAddError,  // 子要素が既にあるのに子要素に追加しようとしたとき
+}
+
+#[derive(Debug)]
 pub struct Node<T> {
     data: T,
     left: Option<Box<Node<T>>>,
@@ -88,31 +93,31 @@ impl<T> Node<T> {
         self.right.replace(Box::new(tree));
     }
 
-    pub fn add_node_left(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
+    pub fn add_node_left(&mut self, tree: Node<T>) -> Result<&mut Node<T>, NodeError> {
         match self.left {
             None => {
                 self.left = Some(Box::new(tree));
                 Ok( self.left_mut().unwrap() )
             },
             Some(_) => {
-                Err("Left Node is aready Exist!".to_string())
+                Err( NodeError::ChildAddError )
             }
         }
     }
 
-    pub fn add_node_right(&mut self, tree: Node<T>) -> Result<&mut Node<T>, String> {
+    pub fn add_node_right(&mut self, tree: Node<T>) -> Result<&mut Node<T>, NodeError> {
         match self.right {
             None => {
                 self.right = Some(Box::new(tree));
                 Ok( self.right_mut().unwrap() )
             },
             Some(_) => {
-                Err("Right Node is aready Exist!".to_string())
+                Err( NodeError::ChildAddError )
             }
         }
     }
 
-    pub fn create_left_node(&mut self, value: T) -> Result<&mut Node<T>, String> {
+    pub fn create_left_node(&mut self, value: T) -> Result<&mut Node<T>, NodeError> {
         match self.left {
             None => {
                 let node = Node::new(value);
@@ -120,12 +125,12 @@ impl<T> Node<T> {
                 Ok( self.left_mut().unwrap() )
             },
             Some(_) => {
-                Err("Left Node is aready Exist!".to_string())
+                Err( NodeError::ChildAddError )
             }
         }
     }
 
-    pub fn create_right_node(&mut self, value: T) -> Result<&mut Node<T>, String> {
+    pub fn create_right_node(&mut self, value: T) -> Result<&mut Node<T>, NodeError> {
         match self.right {
             None => {
                 let node = Node::new(value);
@@ -133,7 +138,7 @@ impl<T> Node<T> {
                 Ok( self.right_mut().unwrap() )
             },
             Some(_) => {
-                Err("Right Node is aready Exist!".to_string())
+                Err( NodeError::ChildAddError )
             }
         }
     }
