@@ -10,17 +10,19 @@ struct Annot<T> {
 }
 
 #[derive(Debug)]
-pub enum ParseError {
+pub enum CalcError {
     Invalid_char(char),
     Invalid_FloatValue,
     Invalid_Operator,
     Invalid_Formula,
     NodeError(NodeError),
+    Invalid_Tree,
+    ZeroDiv,
 }
 
-impl From<NodeError> for ParseError {
+impl From<NodeError> for CalcError {
     fn from(e: NodeError) -> Self {
-        ParseError::NodeError(e)
+        CalcError::NodeError(e)
     }
 }
 
@@ -87,7 +89,32 @@ impl FormulaCalculator {
         }
     }
 
-    pub fn parse(&mut self, formula: &str) -> Result<(), ParseError> {
+    pub fn calc(&self) -> Result<f64, CalcError> {
+        Self::calculator(self.tree.as_ref())
+    }
+
+    fn calculator(node: Option<&Node<Token>>) -> Result<f64, CalcError> {
+
+        match node {
+            Some(n) => {
+                match n.as_ref().value {
+                    TokenKind::Plus     => return Ok( Self::calculator(n.left())? + Self::calculator(n.right())? ),
+                    TokenKind::Minus    => return Ok( Self::calculator(n.left())? - Self::calculator(n.right())? ),
+                    TokenKind::Mul      => return Ok( Self::calculator(n.left())? * Self::calculator(n.right())? ),
+                    TokenKind::Div      => {
+                        let right = Self::calculator(n.right())?;
+                        if right == 0.0 { return Err( CalcError::ZeroDiv ); }
+                        return Ok( Self::calculator(n.left())? / right );
+                    }, 
+                    TokenKind::Float(f) => return Ok( f ),
+                    _ => return Err( CalcError::Invalid_Formula )
+                }
+            }
+            None => { return Err( CalcError::Invalid_Tree ); } // 演算子の子がNoneはありえない
+        }
+    }
+
+    pub fn parse(&mut self, formula: &str) -> Result<(), CalcError> {
         let tokens = Self::lexer(formula);
         
         match tokens {
@@ -101,12 +128,10 @@ impl FormulaCalculator {
             },
             Err(e) => return Err(e),
         }
-        
-        println!("{:?}", self.tree);
         Ok(())
     }
 
-    fn parser(tokens: &[Token]) -> Result< Node<Token>, ParseError> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
+    fn parser(tokens: &[Token]) -> Result< Node<Token>, CalcError> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
         let mut priority = 0;
         let mut target_ope = 0; // 一番優先度の低い演算子の番号
         let mut ope_found = false; // 演算子があるかないか
@@ -116,7 +141,7 @@ impl FormulaCalculator {
             if TokenKind::is_value(&tokens[0].value) {
                 return Ok( Node::new(tokens[0].clone()) );
             } else {
-                return Err( ParseError::Invalid_Formula );
+                return Err( CalcError::Invalid_Formula );
             }
         }
         
@@ -130,19 +155,19 @@ impl FormulaCalculator {
                 ope_found = true;
             }                     
         }
-        if ope_found == false { return Err( ParseError::Invalid_Formula ); }
+        if ope_found == false { return Err( CalcError::Invalid_Formula ); }
 
         // Step. 2: 一番優先度の低い演算子でノードを作成
         let mut node = Node::new(tokens[target_ope].clone());
         
         // Step. 3: 演算子を中心に左と右に分ける
-        node.add_node_left( Self::parser(&tokens[0..target_ope])? )?;   // このunwrapはダメ　add_node_leftのエラーがstringなのが間違い
+        node.add_node_left( Self::parser(&tokens[0..target_ope])? )?;
         node.add_node_right( Self::parser(&tokens[target_ope + 1..])? )?;
         
         Ok( node )
     }
 
-    fn lexer(formula: &str) -> Result<Vec<Token>, ParseError> {
+    fn lexer(formula: &str) -> Result<Vec<Token>, CalcError> {
         let input = formula.as_bytes();
         let mut tokens = Vec::new();
         let mut pos = 0;
@@ -175,14 +200,14 @@ impl FormulaCalculator {
                 b'0'..=b'9' => push_value!(Self::lex_number),
                 b'a'..=b'z' | b'A'..=b'Z' => push_value!(Self::lex_variable),
                 b' ' | b'\n' | b'\t' => { pos += 1 },
-                _ => return Err(ParseError::Invalid_char(input[pos] as char))
+                _ => return Err(CalcError::Invalid_char(input[pos] as char))
             }
         }
         
         Ok(tokens)
     }
 
-    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, ParseError> {
+    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, CalcError> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -196,7 +221,7 @@ impl FormulaCalculator {
             } else if TokenKind::is_whitespace(&input[end]) {
                 break;
             } else {
-                return Err(ParseError::Invalid_char(input[end] as char))
+                return Err(CalcError::Invalid_char(input[end] as char))
             }
         }
 
@@ -205,7 +230,7 @@ impl FormulaCalculator {
         Ok( Token{value: TokenKind::Variable(variable_name), loc: Loc(start, end)} )
     }
 
-    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, ParseError> {
+    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, CalcError> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -214,7 +239,7 @@ impl FormulaCalculator {
         while end < input.len() && b"0123456789.".contains(&input[end]) {
             if input[end] == b'.' { // 2回目の小数点が現れたら
                 if decpoint == true {
-                    return Err(ParseError::Invalid_FloatValue)
+                    return Err(CalcError::Invalid_FloatValue)
                 }
                 decpoint = true;
             }
@@ -250,7 +275,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_number(&"3.3.2".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(ParseError::Invalid_FloatValue));
+        assert_eq!(token, Err(CalcError::Invalid_FloatValue));
     }
 
     #[test]
@@ -270,7 +295,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_variable(&"aa#aa".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(ParseError::Invalid_char('#')));
+        assert_eq!(token, Err(CalcError::Invalid_char('#')));
     }
 }
 
