@@ -40,7 +40,19 @@ fn fn3() {
     let mut a = FormulaCalculator::new();
 
     //a.parse("1 + 2.3 * 4 + 5").unwrap();
-    a.parse("1 + 2 * 3").unwrap();
+    //a.parse("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2").unwrap();
+    a.parse("x = 1 + 1").unwrap();
+
+    let ans = a.calc().unwrap();
+    println!("ans = {}", ans);
+
+    a.parse("y = 8.0 + 3.0 + x").unwrap();
+    let ans = a.calc().unwrap();
+    println!("ans = {}", ans);
+
+    a.parse("-1 + -2 * (3 + 2) * x + y").unwrap();
+    let ans = a.calc().unwrap();
+    println!("ans = {}", ans);
 
     let v = vec![1, 2, 3, 4];
     let b = &v[2..];
@@ -50,6 +62,7 @@ fn fn3() {
 
 fn main() {
     fn3();
+
 
 /*
     let mut a = 0;

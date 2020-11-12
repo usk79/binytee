@@ -6,7 +6,7 @@ pub enum SearchOrder {
     PostOrder,  // 帰りがけ順　左→右→ノード
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum NodeError {
     ChildAddError,  // 子要素が既にあるのに子要素に追加しようとしたとき
 }
