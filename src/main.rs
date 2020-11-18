@@ -41,7 +41,9 @@ fn fn3() {
 
     //a.parse("1 + 2.3 * 4 + 5").unwrap();
     //a.parse("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2").unwrap();
-    a.parse("x = 1 + 1").unwrap();
+    let formula = "x = 1 + 1";
+    a.parse(formula).unwrap();
+    println!("{}", formula);
 
     let ans = a.calc().unwrap();
     println!("ans = {}", ans);

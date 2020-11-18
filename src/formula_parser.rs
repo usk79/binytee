@@ -10,29 +10,6 @@ struct Annot<T> {
     loc: Loc,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum CalcError {
-    InvalidChar(char),
-    InvalidFloatValue,
-    InvalidOperator,
-    InvalidFormula,
-    NodeError(NodeError),
-    IInvalidTree,
-    ZeroDiv,
-    InvalidBracket,
-    InvalidEqualOperator,
-    UnexpectVariable,
-    EmptyFormula,
-    UndefinedVariable,
-    NoTree,
-}
-
-impl From<NodeError> for CalcError {
-    fn from(e: NodeError) -> Self {
-        CalcError::NodeError(e)
-    }
-}
-
 #[derive(Debug, Clone, PartialEq)]
 enum TokenKind {
     Float(f64),         // 数値はすべて浮動小数扱いする
@@ -117,7 +94,7 @@ impl FormulaCalculator {
         }
     }
 
-    pub fn set_formula(formula: &str) -> Result<Self, CalcError> {
+    pub fn set_formula(formula: &str) -> Result<Self, ErrType> {
         let mut f = Self::new();
         match f.parse(formula) {
             Ok(_) => Ok(f),
@@ -125,7 +102,7 @@ impl FormulaCalculator {
         }
     }
 
-    pub fn calc(&mut self) -> Result<f64, CalcError> {
+    pub fn calc(&mut self) -> Result<f64, ErrType> {
 
         if let Some(n) = &mut self.tree {
             match n.as_ref().value {
@@ -144,11 +121,11 @@ impl FormulaCalculator {
                                     
                                     return Ok( ans )
                                 },
-                                _ => return Err( CalcError::InvalidFormula),
+                                _ => return Err( ErrType::InvalidFormula),
                             }
 
                         },
-                        None => return Err( CalcError::InvalidFormula),
+                        None => return Err( ErrType::InvalidFormula),
                     }
                     
                 },
@@ -160,14 +137,14 @@ impl FormulaCalculator {
                     
                     return Ok( ans )
                 }
-                _ => return Err( CalcError::InvalidFormula),
+                _ => return Err( ErrType::InvalidFormula),
             }
         }
 
-        return Err( CalcError::NoTree )
+        return Err( ErrType::NoTree )
     }
 
-    fn replace_variable(node: Option<&mut Node<Token>>, vars: &HashMap<String, f64>) -> Result<(), CalcError> {
+    fn replace_variable(node: Option<&mut Node<Token>>, vars: &HashMap<String, f64>) -> Result<(), ErrType> {
         match node {
             Some(n) => {
                 n.foreach_mut(&SearchOrder::PreOrder, &mut |elem: &mut Token| {
@@ -178,12 +155,12 @@ impl FormulaCalculator {
                     }
                 });
             },
-            None => return Err(CalcError::EmptyFormula)
+            None => return Err(ErrType::EmptyFormula)
         }
         Ok(())
     }
 
-    fn calculate(node: Option<&Node<Token>>) -> Result<f64, CalcError> { // ツリーから計算を行う
+    fn calculate(node: Option<&Node<Token>>) -> Result<f64, ErrType> { // ツリーから計算を行う
         match node {
             Some(n) => {
                 match n.as_ref().value {
@@ -192,24 +169,24 @@ impl FormulaCalculator {
                     TokenKind::Mul      => return Ok( Self::calculate(n.left())? * Self::calculate(n.right())? ),
                     TokenKind::Div      => {
                         let right = Self::calculate(n.right())?;
-                        if right == 0.0 { return Err( CalcError::ZeroDiv ); }
+                        if right == 0.0 { return Err( ErrType::ZeroDiv ); }
                         return Ok( Self::calculate(n.left())? / right );
                     }, 
                     TokenKind::Mod      => {
                         let right = Self::calculate(n.right())?;
-                        if right == 0.0 { return Err( CalcError::ZeroDiv ); }
+                        if right == 0.0 { return Err( ErrType::ZeroDiv ); }
                         return Ok( Self::calculate(n.left())? % right );
                     }
                     TokenKind::Float(f) => return Ok( f ),
-                    TokenKind::Variable(_) => return Err( CalcError::UndefinedVariable ),
-                    _ => return Err( CalcError::InvalidFormula )
+                    TokenKind::Variable(_) => return Err( ErrType::UndefinedVariable ),
+                    _ => return Err( ErrType::InvalidFormula )
                 }
             }
-            None => { return Err( CalcError::IInvalidTree ); } // 演算子の子がNoneはありえない
+            None => { return Err( ErrType::IInvalidTree ); } // 演算子の子がNoneはありえない
         }
     }
 
-    pub fn parse(&mut self, formula: &str) -> Result<(), CalcError> {
+    pub fn parse(&mut self, formula: &str) -> Result<(), ErrType> {
         let tokens = Self::lexer(formula)?;
  
         let res = Self::parser(&tokens);
@@ -221,7 +198,7 @@ impl FormulaCalculator {
         Ok(())
     }
 
-    fn parser(tokens: &[Token]) -> Result<Node<Token>, CalcError> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
+    fn parser(tokens: &[Token]) -> Result<Node<Token>, ErrType> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
         // Step. 0: カッコの数をチェック & カッコ外し
         let tokens = Self::check_brackets(tokens)?;
 
@@ -230,14 +207,14 @@ impl FormulaCalculator {
             if TokenKind::is_value(&tokens[0].value) {
                 return Ok( Node::new(tokens[0].clone()) );
             } else {
-                return Err( CalcError::InvalidFormula );
+                return Err( ErrType::InvalidFormula );
             }
         } else if tokens.len() == 2 {
             match tokens[0].value {
                 TokenKind::Plus => {
                     match tokens[1].value {
                         TokenKind::Float(_) => return Ok( Node::new(tokens[1].clone()) ),
-                        _ => return Err( CalcError::InvalidFormula),
+                        _ => return Err( ErrType::InvalidFormula),
                     }
                 },
                 TokenKind::Minus => {
@@ -247,10 +224,10 @@ impl FormulaCalculator {
                             n.as_mut().value = TokenKind::Float(-f);
                             return Ok(n);
                         },
-                        _ => return Err( CalcError::InvalidFormula),
+                        _ => return Err( ErrType::InvalidFormula),
                     }
                 },
-                _ => return Err( CalcError::InvalidFormula),
+                _ => return Err( ErrType::InvalidFormula),
             }
         }
         
@@ -276,13 +253,13 @@ impl FormulaCalculator {
                 }
             }
         }
-        if ope_found == false { return Err( CalcError::InvalidFormula ); }
+        if ope_found == false { return Err( ErrType::InvalidFormula ); }
 
         // Step. 2.1: target_opeの左隣も四則演算の場合
         if TokenKind::is_alsoperator(&tokens[target_ope - 1].value) {
             match tokens[target_ope].value {
                 TokenKind::Plus | TokenKind::Minus => target_ope -= 1,
-                _ => return Err( CalcError::InvalidOperator ),
+                _ => return Err( ErrType::InvalidOperator ),
             }
         }
 
@@ -296,7 +273,7 @@ impl FormulaCalculator {
         Ok( node )
     }
 
-    fn lexer(formula: &str) -> Result<Vec<Token>, CalcError> {
+    fn lexer(formula: &str) -> Result<Vec<Token>, ErrType> {
         let input = formula.as_bytes();
         let mut tokens = Vec::new();
         let mut pos = 0;
@@ -330,14 +307,14 @@ impl FormulaCalculator {
                 b'0'..=b'9' => push_value!(Self::lex_number),
                 b'a'..=b'z' | b'A'..=b'Z' => push_value!(Self::lex_variable),
                 b' ' | b'\n' | b'\t' => { pos += 1 },
-                _ => return Err(CalcError::InvalidChar(input[pos] as char))
+                _ => return Err(ErrType::InvalidChar(input[pos] as char))
             }
         }
         
         Ok(tokens)
     }
 
-    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, CalcError> {
+    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, ErrType> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -351,7 +328,7 @@ impl FormulaCalculator {
             } else if TokenKind::is_whitespace(&input[end]) {
                 break;
             } else {
-                return Err(CalcError::InvalidChar(input[end] as char))
+                return Err(ErrType::InvalidChar(input[end] as char))
             }
         }
 
@@ -360,7 +337,7 @@ impl FormulaCalculator {
         Ok( Token{value: TokenKind::Variable(variable_name), loc: Loc(start, end)} )
     }
 
-    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, CalcError> {
+    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, ErrType> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -369,7 +346,7 @@ impl FormulaCalculator {
         while end < input.len() && b"0123456789.".contains(&input[end]) {
             if input[end] == b'.' { // 2回目の小数点が現れたら
                 if decpoint == true {
-                    return Err(CalcError::InvalidFloatValue)
+                    return Err(ErrType::InvalidFloatValue)
                 }
                 decpoint = true;
             }
@@ -382,7 +359,7 @@ impl FormulaCalculator {
         Ok( Token{value: TokenKind::Float(value), loc: Loc(start, end)} )
     }
 
-    fn check_brackets(tokens: &[Token]) -> Result<&[Token], CalcError> {
+    fn check_brackets(tokens: &[Token]) -> Result<&[Token], ErrType> {
         let mut checker = 0;
 
         // カッコの数が間違っていないかチェック
@@ -395,7 +372,7 @@ impl FormulaCalculator {
         }
 
         if checker != 0 {
-            return Err(CalcError::InvalidBracket);
+            return Err(ErrType::InvalidBracket);
         }
 
         // 最初が'('で最後が')'だったら一番外側のカッコを外す
@@ -404,6 +381,36 @@ impl FormulaCalculator {
         } else {
             Ok(tokens)
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct FromulaError<'a> {
+    err_type: ErrType,
+    err_msg: &'a str,
+    loc: Loc,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ErrType {
+    InvalidChar(char),
+    InvalidFloatValue,
+    InvalidOperator,
+    InvalidFormula,
+    NodeError(NodeError),
+    IInvalidTree,
+    ZeroDiv,
+    InvalidBracket,
+    InvalidEqualOperator,
+    UnexpectVariable,
+    EmptyFormula,
+    UndefinedVariable,
+    NoTree,
+}
+
+impl From<NodeError> for ErrType {
+    fn from(e: NodeError) -> Self {
+        ErrType::NodeError(e)
     }
 }
 
@@ -426,19 +433,19 @@ mod tests {
         assert_eq!(fc.calc().unwrap(), -9.0);
 
         let mut fc = FormulaCalculator::set_formula("1  2 * 3 * 8.5");
-        assert_eq!(fc.unwrap_err(), CalcError::InvalidFormula);
+        assert_eq!(fc.unwrap_err(), ErrType::InvalidFormula);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 / 0").unwrap();
-        assert_eq!(fc.calc(), Err(CalcError::ZeroDiv));
+        assert_eq!(fc.calc(), Err(ErrType::ZeroDiv));
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2").unwrap();
         assert_eq!(fc.calc().unwrap(), 15.0);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2)");
-        assert_eq!(fc.unwrap_err(), CalcError::InvalidBracket);
+        assert_eq!(fc.unwrap_err(), ErrType::InvalidBracket);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * * 3 * 8.5");
-        assert_eq!(fc.unwrap_err(), CalcError::InvalidOperator);
+        assert_eq!(fc.unwrap_err(), ErrType::InvalidOperator);
     }
 
     #[test]
@@ -458,7 +465,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_number(&"3.3.2".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(CalcError::InvalidFloatValue));
+        assert_eq!(token, Err(ErrType::InvalidFloatValue));
     }
 
     #[test]
@@ -478,7 +485,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_variable(&"aa#aa".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(CalcError::InvalidChar('#')));
+        assert_eq!(token, Err(ErrType::InvalidChar('#')));
     }
 }
 
