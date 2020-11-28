@@ -56,10 +56,60 @@ fn fn3() {
     let ans = a.calc().unwrap();
     println!("ans = {}", ans);
 
-    let v = vec![1, 2, 3, 4];
-    let b = &v[2..];
+    if let Err(e) = a.parse("-1 + (-2 * (3 + 2) * x + y") {
+        e.print();
+    }
 
-    println!("{:?}", b);
+    if let Err(e) = a.parse("-1 + -2 * (3 + 2) * x) + y") {
+        e.print();
+    }
+
+    if let Err(e) = a.parse("-1 + -2..1 * (3 + 2) * x) + y") {
+        e.print();
+    }
+
+    if let Err(e) = a.parse("-1 + # -2.1 * (3 + 2) * x) + y") {
+        e.print();
+    }
+    
+    if let Err(e) = a.parse("-1 + aa# -2.1 * (3 + 2) * x) + y") {
+        e.print();
+    }
+
+    if let Err(e) = a.parse("*1 + -2.1 * (3 + 2) * x + y") {
+        e.print();
+    }
+
+    if let Err(e) = a.parse("1 + *2.1 * (3 + 2) * x + y") {
+        e.print();
+    }
+
+    if let Err(e) = a.parse("x = 1 * (1 1)") { 
+        e.print();
+    }
+
+    if let Err(e) = a.parse("-a") { // 単項演算子＋変数の時がおかしい
+        e.print();
+    }
+
+    if let Err(e) = a.parse("1 + (+)") { // 単項演算子＋変数の時がおかしい
+        e.print();
+    }
+
+    a.parse("1 + 3 / (1 - 1) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    if let Err(e) = a.calc() { 
+        e.print();
+    }
+
+    a.parse("1 + 3 / (1 - 1 + a) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    if let Err(e) = a.calc() { 
+        e.print();
+    }
+
+    a.parse("1 = 1 + 3 / 2 ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    if let Err(e) = a.calc() { 
+        e.print();
+    }
 }
 
 fn main() {

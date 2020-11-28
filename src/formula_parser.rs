@@ -1,7 +1,15 @@
+/// 今後のメモ
+/// FromトレイトとFromStrトレイトを実装することで
+/// let formula = "1 + 2".parse(); のようなことができるはず
+/// colordクレートを参照！
+
+
+
 use std::collections::HashMap;
 use crate::tree::{*};
+use colored::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Loc(usize, usize);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -94,15 +102,13 @@ impl FormulaCalculator {
         }
     }
 
-    pub fn set_formula(formula: &str) -> Result<Self, ErrType> {
+    pub fn set_formula(formula: &str) -> Result<Self, FormulaErr> {
         let mut f = Self::new();
-        match f.parse(formula) {
-            Ok(_) => Ok(f),
-            Err(e) => Err(e),
-        }
+        f.parse(formula)?;
+        Ok(f)
     }
 
-    pub fn calc(&mut self) -> Result<f64, ErrType> {
+    pub fn calc(&mut self) -> Result<f64, FormulaErr> {
 
         if let Some(n) = &mut self.tree {
             match n.as_ref().value {
@@ -121,11 +127,11 @@ impl FormulaCalculator {
                                     
                                     return Ok( ans )
                                 },
-                                _ => return Err( ErrType::InvalidFormula),
+                                _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "= is found, but left term is not variable", n.as_ref().loc ) ),
                             }
 
                         },
-                        None => return Err( ErrType::InvalidFormula),
+                        None => return Err( FormulaErr::new(ErrType::InvalidFormula, "= is found, but left term is None.", n.as_ref().loc) ),
                     }
                     
                 },
@@ -137,14 +143,14 @@ impl FormulaCalculator {
                     
                     return Ok( ans )
                 }
-                _ => return Err( ErrType::InvalidFormula),
+                _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "invalid formula", n.as_ref().loc) ),
             }
         }
 
-        return Err( ErrType::NoTree )
+        return Err( FormulaErr::new(ErrType::NoTree, "can not calculate empty tree.", Loc(0, 0)) )
     }
 
-    fn replace_variable(node: Option<&mut Node<Token>>, vars: &HashMap<String, f64>) -> Result<(), ErrType> {
+    fn replace_variable(node: Option<&mut Node<Token>>, vars: &HashMap<String, f64>) -> Result<(), FormulaErr> {
         match node {
             Some(n) => {
                 n.foreach_mut(&SearchOrder::PreOrder, &mut |elem: &mut Token| {
@@ -155,12 +161,12 @@ impl FormulaCalculator {
                     }
                 });
             },
-            None => return Err(ErrType::EmptyFormula)
+            None => return Err(FormulaErr::new(ErrType::EmptyFormula, "enmpty formula is found.", Loc(0, 0))),
         }
         Ok(())
     }
 
-    fn calculate(node: Option<&Node<Token>>) -> Result<f64, ErrType> { // ツリーから計算を行う
+    fn calculate(node: Option<&Node<Token>>) -> Result<f64, FormulaErr> { // ツリーから計算を行う
         match node {
             Some(n) => {
                 match n.as_ref().value {
@@ -169,36 +175,38 @@ impl FormulaCalculator {
                     TokenKind::Mul      => return Ok( Self::calculate(n.left())? * Self::calculate(n.right())? ),
                     TokenKind::Div      => {
                         let right = Self::calculate(n.right())?;
-                        if right == 0.0 { return Err( ErrType::ZeroDiv ); }
+                        if right == 0.0 { return Err( FormulaErr::new(ErrType::ZeroDiv, "Divided by zero!", n.as_ref().loc ) ); }
                         return Ok( Self::calculate(n.left())? / right );
                     }, 
                     TokenKind::Mod      => {
                         let right = Self::calculate(n.right())?;
-                        if right == 0.0 { return Err( ErrType::ZeroDiv ); }
+                        if right == 0.0 { return Err( FormulaErr::new(ErrType::ZeroDiv, "Divided by zero!", n.as_ref().loc ) ); }
                         return Ok( Self::calculate(n.left())? % right );
                     }
                     TokenKind::Float(f) => return Ok( f ),
-                    TokenKind::Variable(_) => return Err( ErrType::UndefinedVariable ),
-                    _ => return Err( ErrType::InvalidFormula )
+                    TokenKind::Variable(_) => return Err( FormulaErr::new(ErrType::UndefinedVariable, "Undefined Variable is found.", n.as_ref().loc ) ),
+                    _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "Unexpected Error", Loc(0, 0) ) ),
                 }
             }
-            None => { return Err( ErrType::IInvalidTree ); } // 演算子の子がNoneはありえない
+            None => { return Err( FormulaErr::new(ErrType::IInvalidTree, "Invalid tree", Loc(0, 0) ) ); } // 演算子の子がNoneはありえない
         }
     }
 
-    pub fn parse(&mut self, formula: &str) -> Result<(), ErrType> {
-        let tokens = Self::lexer(formula)?;
- 
-        let res = Self::parser(&tokens);
-        match res {
-            Ok(n) => self.tree = Some(n),
-            Err(e) => return Err(e),
+    pub fn parse(&mut self, formula: &str) -> Result<(), FormulaErr> {
+        match Self::lexer(formula) {
+            Ok(tokens) => {
+                match Self::parser(&tokens) {
+                    Ok(tree) => self.tree = Some(tree),
+                    Err(mut e) => { e.formula = formula.to_string(); return Err(e); }
+                }
+            },
+            Err(mut e) => { e.formula = formula.to_string(); return Err(e); }
         }
 
         Ok(())
     }
 
-    fn parser(tokens: &[Token]) -> Result<Node<Token>, ErrType> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
+    fn parser(tokens: &[Token]) -> Result<Node<Token>, FormulaErr> { // https://smdn.jp/programming/tips/polish/を参考に構文解析をする
         // Step. 0: カッコの数をチェック & カッコ外し
         let tokens = Self::check_brackets(tokens)?;
 
@@ -207,14 +215,14 @@ impl FormulaCalculator {
             if TokenKind::is_value(&tokens[0].value) {
                 return Ok( Node::new(tokens[0].clone()) );
             } else {
-                return Err( ErrType::InvalidFormula );
+                return Err( FormulaErr::new(ErrType::InvalidFormula, "a float value is expected, but other token is found.", tokens[0].loc) );
             }
         } else if tokens.len() == 2 {
             match tokens[0].value {
                 TokenKind::Plus => {
                     match tokens[1].value {
                         TokenKind::Float(_) => return Ok( Node::new(tokens[1].clone()) ),
-                        _ => return Err( ErrType::InvalidFormula),
+                        _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "a float value is expected, but other token is found.", tokens[1].loc) ),
                     }
                 },
                 TokenKind::Minus => {
@@ -224,10 +232,10 @@ impl FormulaCalculator {
                             n.as_mut().value = TokenKind::Float(-f);
                             return Ok(n);
                         },
-                        _ => return Err( ErrType::InvalidFormula),
+                        _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "a float value is expected, but other token is found.", tokens[1].loc) ),
                     }
                 },
-                _ => return Err( ErrType::InvalidFormula),
+                _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "'+' or '-' is expected, but other token is found.", tokens[0].loc) ),
             }
         }
         
@@ -236,9 +244,11 @@ impl FormulaCalculator {
         let mut target_ope = 0; // 一番優先度の低い演算子の番号
         let mut ope_found = false; // 演算子があるかないか
         let mut braket_cnt = 0;
+        let mut loc = Loc(0, 0);
 
         for (idx, token) in tokens.iter().enumerate() {   
-            if idx == 0 { continue; }     // 一番左に単項演算子がある場合を想定　-1 + 2　この-1はStep. 1の単項演算子処理部で処理される
+            if idx == 0 { loc.0 = token.loc.0; continue; }     // 一番左に単項演算子がある場合を想定　-1 + 2　この-1はStep. 1の単項演算子処理部で処理される
+            loc.1 = token.loc.1;
             match token.value {
                 TokenKind::LParen => braket_cnt += 1,
                 TokenKind::RParen => braket_cnt -= 1,
@@ -253,13 +263,13 @@ impl FormulaCalculator {
                 }
             }
         }
-        if ope_found == false { return Err( ErrType::InvalidFormula ); }
+        if ope_found == false { return Err( FormulaErr::new(ErrType::InvalidFormula, "Required operator is not found.", loc ) ); }
 
         // Step. 2.1: target_opeの左隣も四則演算の場合
         if TokenKind::is_alsoperator(&tokens[target_ope - 1].value) {
             match tokens[target_ope].value {
                 TokenKind::Plus | TokenKind::Minus => target_ope -= 1,
-                _ => return Err( ErrType::InvalidOperator ),
+                _ => return Err( FormulaErr::new(ErrType::InvalidOperator, "Invalid Operator is found.", tokens[target_ope].loc ) ),
             }
         }
 
@@ -273,7 +283,7 @@ impl FormulaCalculator {
         Ok( node )
     }
 
-    fn lexer(formula: &str) -> Result<Vec<Token>, ErrType> {
+    fn lexer(formula: &str) -> Result<Vec<Token>, FormulaErr> {
         let input = formula.as_bytes();
         let mut tokens = Vec::new();
         let mut pos = 0;
@@ -287,10 +297,7 @@ impl FormulaCalculator {
 
         macro_rules! push_value {
             ($fn_value:expr) => { {
-                match $fn_value(input, &mut pos) {
-                    Ok(token) => tokens.push(token),
-                    Err(e) => return Err(e),
-                }
+                tokens.push($fn_value(input, &mut pos)?);
             } }
         }
 
@@ -307,14 +314,14 @@ impl FormulaCalculator {
                 b'0'..=b'9' => push_value!(Self::lex_number),
                 b'a'..=b'z' | b'A'..=b'Z' => push_value!(Self::lex_variable),
                 b' ' | b'\n' | b'\t' => { pos += 1 },
-                _ => return Err(ErrType::InvalidChar(input[pos] as char))
+                _ => return Err( FormulaErr::new(ErrType::InvalidChar(input[pos] as char), "Invalid char is found.", Loc(pos, pos + 1)) ),
             }
         }
         
         Ok(tokens)
     }
 
-    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, ErrType> {
+    fn lex_variable(input: &[u8], pos: &mut usize) -> Result<Token, FormulaErr> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -328,7 +335,7 @@ impl FormulaCalculator {
             } else if TokenKind::is_whitespace(&input[end]) {
                 break;
             } else {
-                return Err(ErrType::InvalidChar(input[end] as char))
+                return Err( FormulaErr::new(ErrType::InvalidChar(input[end] as char), "Invalid char is found.", Loc(start, end + 1)) );
             }
         }
 
@@ -337,7 +344,7 @@ impl FormulaCalculator {
         Ok( Token{value: TokenKind::Variable(variable_name), loc: Loc(start, end)} )
     }
 
-    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, ErrType> {
+    fn lex_number(input: &[u8], pos: &mut usize) -> Result<Token, FormulaErr> {
         use std::str::from_utf8;
         let start = *pos;
         let mut end = *pos + 1;
@@ -346,7 +353,7 @@ impl FormulaCalculator {
         while end < input.len() && b"0123456789.".contains(&input[end]) {
             if input[end] == b'.' { // 2回目の小数点が現れたら
                 if decpoint == true {
-                    return Err(ErrType::InvalidFloatValue)
+                    return Err( FormulaErr::new(ErrType::InvalidFloatValue, "Invalid float number is found.", Loc(start, end + 1)) );
                 }
                 decpoint = true;
             }
@@ -359,7 +366,7 @@ impl FormulaCalculator {
         Ok( Token{value: TokenKind::Float(value), loc: Loc(start, end)} )
     }
 
-    fn check_brackets(tokens: &[Token]) -> Result<&[Token], ErrType> {
+    fn check_brackets(tokens: &[Token]) -> Result<&[Token], FormulaErr> {
         let mut checker = 0;
 
         // カッコの数が間違っていないかチェック
@@ -370,9 +377,19 @@ impl FormulaCalculator {
                 _ => (),
             }
         }
-
-        if checker != 0 {
-            return Err(ErrType::InvalidBracket);
+        
+        if checker > 0 {
+            for t in tokens.iter() {
+                if let TokenKind::LParen = t.value {
+                    return Err( FormulaErr::new(ErrType::InvalidBracket, "an extra ( is found.", t.loc) );
+                }
+            }
+        } else if checker < 0 {
+            for t in tokens.iter().rev() {
+                if let TokenKind::RParen = t.value {
+                    return Err( FormulaErr::new(ErrType::InvalidBracket, "an extra ) is found.", t.loc) );
+                }
+            }
         }
 
         // 最初が'('で最後が')'だったら一番外側のカッコを外す
@@ -385,10 +402,41 @@ impl FormulaCalculator {
 }
 
 #[derive(Debug)]
-pub struct FromulaError<'a> {
+pub struct FormulaErr {
+    formula: String,
     err_type: ErrType,
-    err_msg: &'a str,
+    err_msg: String,
     loc: Loc,
+}
+
+impl FormulaErr {
+    fn new(etype: ErrType, msg: &str, loc: Loc) -> Self {
+        Self {
+            formula: String::new(),
+            err_type: etype,
+            err_msg: msg.to_string(),
+            loc: loc,
+        }
+    }
+
+    pub fn print(&self) {
+        let token_len = self.loc.1 - self.loc.0;
+
+        println!("{}", self.formula);
+        if token_len > 0 {
+            println!("{}{}", " ".repeat(self.loc.0), "^".repeat(token_len).yellow() );
+        }
+        println!("{}", self.err_msg.blue());
+
+        let a = "aaa".blue();
+    }
+}
+
+
+impl From<NodeError> for FormulaErr {
+    fn from(e: NodeError) -> Self {
+        FormulaErr::new(ErrType::NodeError(e), "bintree error is occuerd", Loc(0, 0))
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
