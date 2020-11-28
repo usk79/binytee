@@ -1,9 +1,3 @@
-/// 今後のメモ
-/// FromトレイトとFromStrトレイトを実装することで
-/// let formula = "1 + 2".parse(); のようなことができるはず
-/// colordクレートを参照！
-
-
 
 use std::collections::HashMap;
 use crate::tree::{*};
@@ -106,6 +100,12 @@ impl FormulaCalculator {
         let mut f = Self::new();
         f.parse(formula)?;
         Ok(f)
+    }
+
+    pub fn show_result(&self) {
+        for (key, value) in &self.vars {
+            println!("{} = {}", key, value);
+        }
     }
 
     pub fn calc(&mut self) -> Result<f64, FormulaErr> {
@@ -427,15 +427,22 @@ impl FormulaErr {
             println!("{}{}", " ".repeat(self.loc.0), "^".repeat(token_len).yellow() );
         }
         println!("{}", self.err_msg.blue());
-
-        let a = "aaa".blue();
     }
 }
-
 
 impl From<NodeError> for FormulaErr {
     fn from(e: NodeError) -> Self {
         FormulaErr::new(ErrType::NodeError(e), "bintree error is occuerd", Loc(0, 0))
+    }
+}
+
+pub trait Formula {
+    fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr>;
+}
+
+impl<'a> Formula for &'a str {
+    fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr> {
+        FormulaCalculator::set_formula(self)
     }
 }
 

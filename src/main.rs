@@ -112,9 +112,19 @@ fn fn3() {
     }
 }
 
+fn fn4() {
+    println!("fn4 from here -----------");
+
+    let mut f = "x = 2 + 1".to_formula().unwrap();
+    f.calc().unwrap();
+    
+
+    f.show_result();
+}
+
 fn main() {
     fn3();
-
+    fn4();
 
 /*
     let mut a = 0;
