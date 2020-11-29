@@ -27,6 +27,21 @@ enum TokenKind {
 }
 
 impl TokenKind {
+    pub fn to_string(&self) -> String {
+        match self {
+            TokenKind::Plus        => "+".to_string(),
+            TokenKind::Minus       => "-".to_string(),
+            TokenKind::Mul         => "*".to_string(),
+            TokenKind::Div         => "/".to_string(),
+            TokenKind::Mod         => "%".to_string(),
+            TokenKind::Equal       => "=".to_string(),
+            TokenKind::LParen      => "(".to_string(),
+            TokenKind::RParen      => ")".to_string(),
+            TokenKind::Float(f)    => f.to_string(),
+            TokenKind::Variable(v) => v.clone(),
+        }
+    }
+
     pub fn is_operator_char(target: &u8) -> bool { // 演算子なら優先度を返す 0が一番優先度高い
         b"+-*/%()".contains(target)
     }
@@ -83,6 +98,7 @@ type Token = Annot<TokenKind>;
 pub struct FormulaCalculator { 
     tree: Option<Node<Token>>,
     vars: HashMap<String, f64>,
+    formula_str: String,
 }
 
 impl FormulaCalculator {
@@ -93,6 +109,7 @@ impl FormulaCalculator {
         FormulaCalculator {
             tree: None,
             vars: vars,
+            formula_str: String::new(),
         }
     }
 
@@ -109,6 +126,16 @@ impl FormulaCalculator {
     }
 
     pub fn calc(&mut self) -> Result<f64, FormulaErr> {
+        match self.calc_root() {
+            Ok(f) => Ok(f),
+            Err(mut e) => {
+                e.formula = self.formula_str.clone();
+                return Err(e);
+            }
+        }
+    }
+
+    fn calc_root(&mut self) -> Result<f64, FormulaErr> {
 
         if let Some(n) = &mut self.tree {
             match n.as_ref().value {
@@ -193,14 +220,16 @@ impl FormulaCalculator {
     }
 
     pub fn parse(&mut self, formula: &str) -> Result<(), FormulaErr> {
+        self.formula_str = formula.to_string();
+
         match Self::lexer(formula) {
             Ok(tokens) => {
                 match Self::parser(&tokens) {
                     Ok(tree) => self.tree = Some(tree),
-                    Err(mut e) => { e.formula = formula.to_string(); return Err(e); }
+                    Err(mut e) => { e.formula = self.formula_str.clone(); return Err(e); }
                 }
             },
-            Err(mut e) => { e.formula = formula.to_string(); return Err(e); }
+            Err(mut e) => { e.formula = self.formula_str.clone(); return Err(e); }
         }
 
         Ok(())

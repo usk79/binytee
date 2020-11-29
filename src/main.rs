@@ -116,9 +116,9 @@ fn fn4() {
     println!("fn4 from here -----------");
 
     let mut f = "x = 2 + 1".to_formula().unwrap();
+
     f.calc().unwrap();
     
-
     f.show_result();
 }
 
