@@ -1,6 +1,7 @@
 
 use std::collections::HashMap;
 use crate::tree::{*};
+use crate::varpool::{*};
 use colored::*;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -97,7 +98,6 @@ type Token = Annot<TokenKind>;
 #[derive(Debug)]
 pub struct FormulaCalculator { 
     tree: Option<Node<Token>>,
-    vars: HashMap<String, f64>,
     formula_str: String,
 }
 
@@ -108,7 +108,6 @@ impl FormulaCalculator {
 
         FormulaCalculator {
             tree: None,
-            vars: vars,
             formula_str: String::new(),
         }
     }
@@ -119,14 +118,8 @@ impl FormulaCalculator {
         Ok(f)
     }
 
-    pub fn show_result(&self) {
-        for (key, value) in &self.vars {
-            println!("{} = {}", key, value);
-        }
-    }
-
-    pub fn calc(&mut self) -> Result<f64, FormulaErr> {
-        match self.calc_root() {
+    pub fn calc(&mut self, vers: &VarPool) -> Result<VarData, FormulaErr> {
+        match self.calc_root(vers) {
             Ok(f) => Ok(f),
             Err(mut e) => {
                 e.formula = self.formula_str.clone();
@@ -135,12 +128,12 @@ impl FormulaCalculator {
         }
     }
 
-    fn calc_root(&mut self) -> Result<f64, FormulaErr> {
+    fn calc_root(&mut self, vars: &VarPool) -> Result<VarData, FormulaErr> {
 
         if let Some(n) = &mut self.tree {
             match n.as_ref().value {
                 TokenKind::Equal => { // rootが = の場合（代入）
-                    Self::replace_variable(n.right_mut(), &self.vars)?;
+                    Self::replace_variable(n.right_mut(), vars)?;
 
                     let ans = Self::calculate(n.right())?; // = の右側を計算
                     
@@ -150,9 +143,8 @@ impl FormulaCalculator {
                             
                             match var { // 左側に来るのは変数のみ
                                 TokenKind::Variable(v) => {
-                                    self.vars.insert(v.to_string(), ans);
-                                    
-                                    return Ok( ans )
+                                                       
+                                    return Ok( VarData(v.to_string(), ans) )
                                 },
                                 _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "= is found, but left term is not variable", n.as_ref().loc ) ),
                             }
@@ -163,12 +155,11 @@ impl FormulaCalculator {
                     
                 },
                 TokenKind::Float(_) | TokenKind::Variable(_) | TokenKind::Plus | TokenKind::Minus => { // 代入式ではない場合は ans 変数に計算結果を入れる
-                    Self::replace_variable(self.tree.as_mut(), &self.vars)?;
+                    Self::replace_variable(self.tree.as_mut(), vars)?;
 
                     let ans = Self::calculate(self.tree.as_ref())?;
-                    self.vars.insert("ans".to_string(), ans);
-                    
-                    return Ok( ans )
+                                        
+                    return Ok( VarData("ans".to_string(), ans) )
                 }
                 _ => return Err( FormulaErr::new(ErrType::InvalidFormula, "invalid formula", n.as_ref().loc) ),
             }
@@ -177,13 +168,13 @@ impl FormulaCalculator {
         return Err( FormulaErr::new(ErrType::NoTree, "can not calculate empty tree.", Loc(0, 0)) )
     }
 
-    fn replace_variable(node: Option<&mut Node<Token>>, vars: &HashMap<String, f64>) -> Result<(), FormulaErr> {
+    fn replace_variable(node: Option<&mut Node<Token>>, vars: &VarPool) -> Result<(), FormulaErr> {
         match node {
             Some(n) => {
                 n.foreach_mut(&SearchOrder::PreOrder, &mut |elem: &mut Token| {
                     if let TokenKind::Variable(v) = &elem.value {                        
                         if let Some(f) = vars.get(v) {          // ここでは、定義されている変数を見つけた場合には値に置き換えている。　
-                            elem.value = TokenKind::Float(*f);  // Noneが来た場合は何もしない　→　calculate関数を実行したときにVariableを見つけたら未定義としてはじく
+                            elem.value = TokenKind::Float(f);  // Noneが来た場合は何もしない　→　calculate関数を実行したときにVariableを見つけたら未定義としてはじく
                         }
                     }
                 });
@@ -504,32 +495,34 @@ mod tests {
 
     #[test]
     fn calc_test() {
+        let mut pool = VarPool::new();
+
         let mut fc = FormulaCalculator::set_formula("1 + 2 * 3 * 8.5").unwrap();
-        assert_eq!(fc.calc().unwrap(), 52.0);
+        assert_eq!(fc.calc(&pool).unwrap().1, 52.0);
 
         let mut fc = FormulaCalculator::set_formula("-1 * 2").unwrap();
-        assert_eq!(fc.calc().unwrap(), -2.0);
+        assert_eq!(fc.calc(&pool).unwrap().1, -2.0);
 
         let mut fc = FormulaCalculator::set_formula("-1 * -2").unwrap();
-        assert_eq!(fc.calc().unwrap(), 2.0);
+        assert_eq!(fc.calc(&pool).unwrap().1, 2.0);
 
         let mut fc = FormulaCalculator::set_formula("1 + -2 * (3 + 2)").unwrap();
-        assert_eq!(fc.calc().unwrap(), -9.0);
+        assert_eq!(fc.calc(&pool).unwrap().1, -9.0);
 
         let mut fc = FormulaCalculator::set_formula("1  2 * 3 * 8.5");
-        assert_eq!(fc.unwrap_err(), ErrType::InvalidFormula);
+        assert_eq!(fc.unwrap_err().err_type, ErrType::InvalidFormula);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 / 0").unwrap();
-        assert_eq!(fc.calc(), Err(ErrType::ZeroDiv));
+        assert_eq!(fc.calc(&pool).unwrap_err().err_type, ErrType::ZeroDiv);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2").unwrap();
-        assert_eq!(fc.calc().unwrap(), 15.0);
+        assert_eq!(fc.calc(&pool).unwrap(), 15.0);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2)");
-        assert_eq!(fc.unwrap_err(), ErrType::InvalidBracket);
+        assert_eq!(fc.unwrap_err().err_type, ErrType::InvalidBracket);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * * 3 * 8.5");
-        assert_eq!(fc.unwrap_err(), ErrType::InvalidOperator);
+        assert_eq!(fc.unwrap_err().err_type, ErrType::InvalidOperator);
     }
 
     #[test]
@@ -549,7 +542,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_number(&"3.3.2".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(ErrType::InvalidFloatValue));
+        assert_eq!(token.unwrap_err().err_type, ErrType::InvalidFloatValue);
     }
 
     #[test]
@@ -569,7 +562,7 @@ mod tests {
         let mut pos = 0;
         let token = FormulaCalculator::lex_variable(&"aa#aa".as_bytes(), &mut pos);
 
-        assert_eq!(token, Err(ErrType::InvalidChar('#')));
+        assert_eq!(token.unwrap_err().err_type, ErrType::InvalidChar('#'));
     }
 }
 

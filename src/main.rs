@@ -1,5 +1,6 @@
 use bintree::tree::{Node, SearchOrder};
 use bintree::formula::{*};
+use bintree::varpool::{*};
 
 #[derive(Debug)]
 struct Ijk {
@@ -37,6 +38,7 @@ fn fn2() {
 }
 
 fn fn3() {
+    let mut pool = VarPool::new();
     let mut a = FormulaCalculator::new();
 
     //a.parse("1 + 2.3 * 4 + 5").unwrap();
@@ -45,16 +47,25 @@ fn fn3() {
     a.parse(formula).unwrap();
     println!("{}", formula);
 
-    let ans = a.calc().unwrap();
-    println!("ans = {}", ans);
+    let ans = a.calc(&pool).unwrap();
+    println!("{}", ans);
+    pool.insert(ans);
 
     a.parse("y = 8.0 + 3.0 + x").unwrap();
-    let ans = a.calc().unwrap();
-    println!("ans = {}", ans);
+    let ans = a.calc(&pool).unwrap();
+    println!("{}", ans);
+    pool.insert(ans);
 
     a.parse("-1 + -2 * (3 + 2) * x + y").unwrap();
-    let ans = a.calc().unwrap();
-    println!("ans = {}", ans);
+    let ans = a.calc(&pool).unwrap();
+    println!("{}", ans);
+    pool.insert(ans);
+
+    a.parse("-1 * -2").unwrap();
+    if let Err(e) = a.calc(&pool) {
+        e.print();
+    }
+    
 
     if let Err(e) = a.parse("-1 + (-2 * (3 + 2) * x + y") {
         e.print();
@@ -97,29 +108,29 @@ fn fn3() {
     }
 
     a.parse("1 + 3 / (1 - 1) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
-    if let Err(e) = a.calc() { 
+    if let Err(e) = a.calc(&pool) { 
         e.print();
     }
 
     a.parse("1 + 3 / (1 - 1 + a) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
-    if let Err(e) = a.calc() { 
+    if let Err(e) = a.calc(&pool) { 
         e.print();
     }
 
     a.parse("1 = 1 + 3 / 2 ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
-    if let Err(e) = a.calc() { 
+    if let Err(e) = a.calc(&pool) { 
         e.print();
     }
 }
 
 fn fn4() {
     println!("fn4 from here -----------");
-
+    let mut pool = VarPool::new();
     let mut f = "x = 2 + 1".to_formula().unwrap();
 
-    f.calc().unwrap();
+    let ans = f.calc(&pool).unwrap();
+    pool.insert(ans);
     
-    f.show_result();
 }
 
 fn main() {

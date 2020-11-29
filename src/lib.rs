@@ -1,5 +1,6 @@
 pub mod tree;
 pub mod formula;
+pub mod varpool;
 
 #[cfg(test)]
 mod tests {
