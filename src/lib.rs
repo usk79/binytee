@@ -1,5 +1,5 @@
 pub mod tree;
-pub mod formula_parser;
+pub mod formula;
 
 #[cfg(test)]
 mod tests {

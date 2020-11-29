@@ -1,5 +1,5 @@
 use bintree::tree::{Node, SearchOrder};
-use bintree::formula_parser::{*};
+use bintree::formula::{*};
 
 #[derive(Debug)]
 struct Ijk {
