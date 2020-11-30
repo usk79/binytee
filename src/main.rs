@@ -1,7 +1,41 @@
+use std::io::{stdin, BufRead, BufReader};
+
 use bintree::tree::{Node, SearchOrder};
 use bintree::formula::{*};
 use bintree::varpool::{*};
 
+
+fn main() {
+
+    let stdin = stdin();
+    let reader = stdin.lock();
+
+    let mut varpool = VarPool::new();
+
+    for line in reader.lines() {
+        let line = line.unwrap();
+        
+        match line.to_formula() {
+            Ok(mut f) => {
+                match f.calc(&varpool) {
+                    Ok(dat) => {
+                        println!("{}", dat);
+                        varpool.insert(dat);
+                    },
+                    Err( e ) => {
+                        e.print();
+                    },
+                }
+            },
+            Err( e ) => {
+                e.print();
+            }
+        }
+
+    }
+}
+
+/*
 #[derive(Debug)]
 struct Ijk {
     i: i32,
@@ -137,7 +171,7 @@ fn main() {
     fn3();
     fn4();
 
-/*
+
     let mut a = 0;
     let b = &mut a;
 
@@ -165,7 +199,7 @@ fn main() {
     println!("OutOrder");
     root.foreach(&SearchOrder::PostOrder, &mut |x| println!("{}", x));
 
-/*
+
     let mut one = 1;
 
     let mut plus_one = |x| -> i32 {
@@ -193,7 +227,7 @@ fn main() {
 
     closure_test(push2ary);
 
-    println!("{:?}", ary);*/
+    println!("{:?}", ary);
     let mut data = 100;
 
     let mut closure = |x: i32| {
@@ -212,7 +246,7 @@ fn main() {
 
     println!("{:?}", ary);
 
-    */
+    
 }
 
 
@@ -235,3 +269,4 @@ where F: Fn(i32) {
 fn function(x: i32) {
     println!("I'm a function! {}", x);
 }
+*/

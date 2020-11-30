@@ -154,7 +154,7 @@ impl FormulaCalculator {
                     }
                     
                 },
-                TokenKind::Float(_) | TokenKind::Variable(_) | TokenKind::Plus | TokenKind::Minus => { // 代入式ではない場合は ans 変数に計算結果を入れる
+                TokenKind::Float(_) | TokenKind::Variable(_) | TokenKind::Plus | TokenKind::Minus | TokenKind::Mul | TokenKind::Div => { // 代入式ではない場合は ans 変数に計算結果を入れる
                     Self::replace_variable(self.tree.as_mut(), vars)?;
 
                     let ans = Self::calculate(self.tree.as_ref())?;
@@ -267,12 +267,14 @@ impl FormulaCalculator {
         let mut loc = Loc(0, 0);
 
         for (idx, token) in tokens.iter().enumerate() {   
-            if idx == 0 { loc.0 = token.loc.0; continue; }     // 一番左に単項演算子がある場合を想定　-1 + 2　この-1はStep. 1の単項演算子処理部で処理される
+            
             loc.1 = token.loc.1;
             match token.value {
                 TokenKind::LParen => braket_cnt += 1,
                 TokenKind::RParen => braket_cnt -= 1,
                 _ => {
+                    if idx == 0 { loc.0 = token.loc.0; continue; }     // 一番左に単項演算子がある場合を想定　-1 + 2　この-1はStep. 1の単項演算子処理部で処理される
+                    
                     if let Some(p) = TokenKind::ope_priority(&token.value) {
                         if p >= priority && braket_cnt == 0 { // カッコの中にいるとき(bracket_cnt > 0)は無視する
                             priority = p;
@@ -297,6 +299,7 @@ impl FormulaCalculator {
         let mut node = Node::new(tokens[target_ope].clone());
         
         // Step. 4: 演算子を中心に左と右に分ける
+        println!("{:?}", target_ope);
         node.add_node_left( Self::parser(&tokens[0..target_ope])? )?;
         node.add_node_right( Self::parser(&tokens[target_ope + 1..])? )?;
         
@@ -389,6 +392,8 @@ impl FormulaCalculator {
     fn check_brackets(tokens: &[Token]) -> Result<&[Token], FormulaErr> {
         let mut checker = 0;
 
+        println!("{:?}\n", tokens);
+
         // カッコの数が間違っていないかチェック
         for t in tokens.iter() {
             match t.value {
@@ -466,6 +471,12 @@ impl<'a> Formula for &'a str {
     }
 }
 
+impl Formula for String {
+    fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr> {
+        FormulaCalculator::set_formula(self)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub enum ErrType {
     InvalidChar(char),
@@ -497,8 +508,8 @@ mod tests {
     fn calc_test() {
         let mut pool = VarPool::new();
 
-        let mut fc = FormulaCalculator::set_formula("1 + 2 * 3 * 8.5").unwrap();
-        assert_eq!(fc.calc(&pool).unwrap().1, 52.0);
+        let mut fc = FormulaCalculator::set_formula("x = (1 + 2) * 3").unwrap();
+        assert_eq!(fc.calc(&pool).unwrap().1, 9.0);
 
         let mut fc = FormulaCalculator::set_formula("-1 * 2").unwrap();
         assert_eq!(fc.calc(&pool).unwrap().1, -2.0);
@@ -516,7 +527,7 @@ mod tests {
         assert_eq!(fc.calc(&pool).unwrap_err().err_type, ErrType::ZeroDiv);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2").unwrap();
-        assert_eq!(fc.calc(&pool).unwrap(), 15.0);
+        assert_eq!(fc.calc(&pool).unwrap().1, 15.0);
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * (3 + 15 / (1 + 3)) + 1 / 2)");
         assert_eq!(fc.unwrap_err().err_type, ErrType::InvalidBracket);
