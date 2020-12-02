@@ -1,9 +1,7 @@
 use std::io::{stdin, BufRead, BufReader};
 
-use bintree::tree::{Node, SearchOrder};
 use bintree::formula::{*};
 use bintree::varpool::{*};
-
 
 fn main() {
 
@@ -15,61 +13,17 @@ fn main() {
     for line in reader.lines() {
         let line = line.unwrap();
         
-        match line.to_formula() {
-            Ok(mut f) => {
-                match f.calc(&varpool) {
-                    Ok(dat) => {
-                        println!("{}", dat);
-                        varpool.insert(dat);
-                    },
-                    Err( e ) => {
-                        e.print();
-                    },
-                }
+        match line.eval(&varpool) {
+            Ok(dat) => {
+                println!("=> {}", dat);
+                varpool.insert(dat);
             },
-            Err( e ) => {
-                e.print();
-            }
+            Err( e ) => e.print(),
         }
-
     }
 }
 
 /*
-#[derive(Debug)]
-struct Ijk {
-    i: i32,
-    j: i32,
-    k: i32,
-}
-
-impl Ijk {
-    fn new(idx: i32) -> Self {
-        Self {
-            i: 1 * idx,
-            j: 2 * idx,
-            k: 3 * idx,
-        }
-
-    }
-}
-
-fn fn1(dat: &mut i32) {
-    *dat = 100;
-    
-}
-
-fn fn2() {
-    let mut a = Some(Box::new(1));
-
-    let b = a.as_mut();
-
-    let c = b.map(|x| &mut **x).unwrap();
-
-    *c = 10;
-    
-    println!("{:?}", c);
-}
 
 fn fn3() {
     let mut pool = VarPool::new();
@@ -133,140 +87,27 @@ fn fn3() {
         e.print();
     }
 
-    if let Err(e) = a.parse("-a") { // 単項演算子＋変数の時がおかしい
+    if let Err(e) = a.parse("-a") { 
         e.print();
     }
 
-    if let Err(e) = a.parse("1 + (+)") { // 単項演算子＋変数の時がおかしい
+    if let Err(e) = a.parse("1 + (+)") { 
         e.print();
     }
 
-    a.parse("1 + 3 / (1 - 1) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    a.parse("1 + 3 / (1 - 1) ").unwrap(); 
     if let Err(e) = a.calc(&pool) { 
         e.print();
     }
 
-    a.parse("1 + 3 / (1 - 1 + a) ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    a.parse("1 + 3 / (1 - 1 + a) ").unwrap(); 
     if let Err(e) = a.calc(&pool) { 
         e.print();
     }
 
-    a.parse("1 = 1 + 3 / 2 ").unwrap(); // 今は数式が出ない　→　treeから数式を再現するような機能を追加する
+    a.parse("1 = 1 + 3 / 2 ").unwrap(); 
     if let Err(e) = a.calc(&pool) { 
         e.print();
     }
-}
-
-fn fn4() {
-    println!("fn4 from here -----------");
-    let mut pool = VarPool::new();
-    let mut f = "x = 2 + 1".to_formula().unwrap();
-
-    let ans = f.calc(&pool).unwrap();
-    pool.insert(ans);
-    
-}
-
-fn main() {
-    fn3();
-    fn4();
-
-
-    let mut a = 0;
-    let b = &mut a;
-
-
-
-    let mut root = Node::new(1);
-    let mut left = Node::new(2);
-    let mut right = Node::new(3);
-
-    left.add_node_left(Node::new(4)).unwrap();
-    left.add_node_right(Node::new(5)).unwrap();
-
-    right.add_node_left(Node::new(6)).unwrap();
-    right.add_node_right(Node::new(7)).unwrap();
-
-    root.add_node_left(left).unwrap();
-    root.add_node_right(right).unwrap();
-
-    let preorder_vec = vec![1, 2, 4, 5, 3, 6, 7];
-  
-    println!("PreOrder");
-    root.foreach(&SearchOrder::PreOrder, &mut |x| println!("{}", x));
-    println!("InOrder");
-    root.foreach(&SearchOrder::InOrder, &mut |x| println!("{}", x));
-    println!("OutOrder");
-    root.foreach(&SearchOrder::PostOrder, &mut |x| println!("{}", x));
-
-
-    let mut one = 1;
-
-    let mut plus_one = |x| -> i32 {
-        one += 1;
-        x + one
-    };
-
-    println!("{}", plus_one(10));
-    println!("{}", plus_one(10));
-    println!("{}", plus_one(10));
-    println!("{}", plus_one(10));
-
-    let mut ary: Vec<i32> = Vec::new();
-
-    let mut push2ary = |x| {
-        ary.push(x);
-    };
-    
-    push2ary(1);
-    push2ary(2);
-    push2ary(3);
-    push2ary(4);
-
-    println!("{:?}", ary);
-
-    closure_test(push2ary);
-
-    println!("{:?}", ary);
-    let mut data = 100;
-
-    let mut closure = |x: i32| {
-        data += x;
-        println!("I'm a closure! {}, {}", x, data);
-    };
-
-    call_me_mut(&mut closure);
-    call_me_mut(&mut closure);
-    call_me(function);
-    
-    let mut ary: Vec<i32> = Vec::new();
-    let mut pusher = |x| ary.push(x);
-
-    call_me_mut(&mut pusher);
-
-    println!("{:?}", ary);
-
-    
-}
-
-
-fn call_me_mut<F>(f: &mut F) 
-where F: FnMut(i32) {
-    f(1);
-    f(1);
-    f(1);
-    f(1);
-}
-
-
-fn call_me<F>(f: F) 
-where F: Fn(i32) {
-    f(1);
-
-}
-
-// Define a wrapper function satisfying the `Fn` bound
-fn function(x: i32) {
-    println!("I'm a function! {}", x);
 }
 */

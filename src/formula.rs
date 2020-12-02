@@ -274,7 +274,7 @@ impl FormulaCalculator {
                 TokenKind::RParen => braket_cnt -= 1,
                 _ => {
                     if idx == 0 { loc.0 = token.loc.0; continue; }     // 一番左に単項演算子がある場合を想定　-1 + 2　この-1はStep. 1の単項演算子処理部で処理される
-                    
+
                     if let Some(p) = TokenKind::ope_priority(&token.value) {
                         if p >= priority && braket_cnt == 0 { // カッコの中にいるとき(bracket_cnt > 0)は無視する
                             priority = p;
@@ -299,7 +299,6 @@ impl FormulaCalculator {
         let mut node = Node::new(tokens[target_ope].clone());
         
         // Step. 4: 演算子を中心に左と右に分ける
-        println!("{:?}", target_ope);
         node.add_node_left( Self::parser(&tokens[0..target_ope])? )?;
         node.add_node_right( Self::parser(&tokens[target_ope + 1..])? )?;
         
@@ -392,8 +391,6 @@ impl FormulaCalculator {
     fn check_brackets(tokens: &[Token]) -> Result<&[Token], FormulaErr> {
         let mut checker = 0;
 
-        println!("{:?}\n", tokens);
-
         // カッコの数が間違っていないかチェック
         for t in tokens.iter() {
             match t.value {
@@ -463,17 +460,34 @@ impl From<NodeError> for FormulaErr {
 
 pub trait Formula {
     fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr>;
+
+    fn eval(&self, varpool: &VarPool) -> Result<VarData, FormulaErr>;
 }
 
 impl<'a> Formula for &'a str {
     fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr> {
         FormulaCalculator::set_formula(self)
     }
+
+    fn eval(&self, varpool: &VarPool) -> Result<VarData, FormulaErr> {
+        match self.to_formula() {
+            Ok(mut f) => return Ok( f.calc(varpool)? ),
+            Err( e ) => return Err(e),
+        }
+    }
+
 }
 
 impl Formula for String {
     fn to_formula(&self) -> Result<FormulaCalculator, FormulaErr> {
         FormulaCalculator::set_formula(self)
+    }
+
+    fn eval(&self, varpool: &VarPool) -> Result<VarData, FormulaErr> {
+        match self.to_formula() {
+            Ok(mut f) => return Ok( f.calc(varpool)? ),
+            Err( e ) => return Err(e),
+        }
     }
 }
 
