@@ -133,7 +133,7 @@ impl FormulaCalculator {
         if let Some(n) = &mut self.tree {
             match n.as_ref().value {
                 TokenKind::Equal => { // rootが = の場合（代入）
-                    Self::replace_variable(n.right_mut(), vars)?;
+                    Self::replace_variable(n.right_mut(), vars)?; // ツリーを探索して変数が見つかったら数値とvarpoolに登録されている数値と置き換える
 
                     let ans = Self::calculate(n.right())?; // = の右側を計算
                     
@@ -150,7 +150,7 @@ impl FormulaCalculator {
                             }
 
                         },
-                        None => return Err( FormulaErr::new(ErrType::InvalidFormula, "= is found, but left term is None.", n.as_ref().loc) ),
+                        None => return Err( FormulaErr::new(ErrType::InvalidFormula, "= is found, but left term is empty.", n.as_ref().loc) ),
                     }
                     
                 },
@@ -265,6 +265,7 @@ impl FormulaCalculator {
         let mut ope_found = false; // 演算子があるかないか
         let mut braket_cnt = 0;
         let mut loc = Loc(0, 0);
+        println!("tokens = {:?}", tokens);
 
         for (idx, token) in tokens.iter().enumerate() {   
             
@@ -286,7 +287,7 @@ impl FormulaCalculator {
             }
         }
         if ope_found == false { return Err( FormulaErr::new(ErrType::InvalidFormula, "Required operator is not found.", loc ) ); }
-
+        println!("target_ope = {}", target_ope);
         // Step. 2.1: target_opeの左隣も四則演算の場合
         if TokenKind::is_alsoperator(&tokens[target_ope - 1].value) {
             match tokens[target_ope].value {
@@ -398,6 +399,10 @@ impl FormulaCalculator {
                 TokenKind::RParen => checker -= 1,
                 _ => (),
             }
+
+            if checker < 0 { // カッコは必ず ( とペアなので、checkerがマイナスになることはない
+                return Err( FormulaErr::new(ErrType::InvalidBracket, "an invalid ) is found", t.loc) );
+            }
         }
         
         if checker > 0 {
@@ -414,9 +419,13 @@ impl FormulaCalculator {
             }
         }
 
-        // 最初が'('で最後が')'だったら一番外側のカッコを外す
+        // 最初が'('で最後が')'だったら一番外側のカッコを外す ただし、外した後も正しい数式が保たれる場合のみ
+        //　→　(1 + 2) * (1 + 2) のような場合は、外側のかっこを外すとおかしくなる
         if tokens[0].value == TokenKind::LParen && tokens[tokens.len() - 1].value == TokenKind::RParen {
-            Ok(&tokens[1..tokens.len() - 1])
+            match Self::check_brackets(&tokens[1..tokens.len() - 1]) {
+                Ok(_) => Ok(&tokens[1..tokens.len() - 1]),
+                Err(_) => Ok(tokens),
+            }
         } else {
             Ok(tokens)
         }
@@ -548,6 +557,10 @@ mod tests {
 
         let mut fc = FormulaCalculator::set_formula("1 + 2 * * 3 * 8.5");
         assert_eq!(fc.unwrap_err().err_type, ErrType::InvalidOperator);
+
+        let mut fc = FormulaCalculator::set_formula("(1 + 2) * (1 + 3)").unwrap();
+        assert_eq!(fc.calc(&pool).unwrap().1, 12.0);
+
     }
 
     #[test]
