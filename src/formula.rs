@@ -265,8 +265,7 @@ impl FormulaCalculator {
         let mut ope_found = false; // 演算子があるかないか
         let mut braket_cnt = 0;
         let mut loc = Loc(0, 0);
-        println!("tokens = {:?}", tokens);
-
+        
         for (idx, token) in tokens.iter().enumerate() {   
             
             loc.1 = token.loc.1;
@@ -287,7 +286,7 @@ impl FormulaCalculator {
             }
         }
         if ope_found == false { return Err( FormulaErr::new(ErrType::InvalidFormula, "Required operator is not found.", loc ) ); }
-        println!("target_ope = {}", target_ope);
+        
         // Step. 2.1: target_opeの左隣も四則演算の場合
         if TokenKind::is_alsoperator(&tokens[target_ope - 1].value) {
             match tokens[target_ope].value {
@@ -533,6 +532,9 @@ mod tests {
 
         let mut fc = FormulaCalculator::set_formula("x = (1 + 2) * 3").unwrap();
         assert_eq!(fc.calc(&pool).unwrap().1, 9.0);
+
+        let mut fc = FormulaCalculator::set_formula("y = (x + 2) * 3").unwrap();
+        assert_eq!(fc.calc(&pool).unwrap().1, 33.0);
 
         let mut fc = FormulaCalculator::set_formula("-1 * 2").unwrap();
         assert_eq!(fc.calc(&pool).unwrap().1, -2.0);
